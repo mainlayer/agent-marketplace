@@ -3,7 +3,7 @@ import os
 from typing import Optional
 
 
-MAINLAYER_BASE_URL = "https://api.mainlayer.xyz"
+MAINLAYER_BASE_URL = "https://api.mainlayer.fr"
 
 
 class MainlayerClient:

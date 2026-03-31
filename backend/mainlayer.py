@@ -1,6 +1,6 @@
 """
 Mainlayer API client — Stripe for AI agents.
-Base URL: https://api.mainlayer.xyz
+Base URL: https://api.mainlayer.fr
 """
 
 import os
@@ -8,7 +8,7 @@ import httpx
 from typing import Any, Optional
 
 
-MAINLAYER_BASE_URL = os.getenv("MAINLAYER_BASE_URL", "https://api.mainlayer.xyz")
+MAINLAYER_BASE_URL = os.getenv("MAINLAYER_BASE_URL", "https://api.mainlayer.fr")
 MAINLAYER_API_KEY = os.getenv("MAINLAYER_API_KEY", "")
 
 

@@ -125,7 +125,7 @@ function Footer() {
     >
       Powered by{" "}
       <a
-        href="https://mainlayer.xyz"
+        href="https://mainlayer.fr"
         target="_blank"
         rel="noreferrer"
         style={{ color: "var(--brand)", textDecoration: "none", fontWeight: 600 }}

@@ -1,7 +1,7 @@
 # Agent Marketplace
 
 A production-ready marketplace for AI agents with per-call billing powered by
-[Mainlayer](https://mainlayer.xyz) — payment infrastructure for AI agents.
+[Mainlayer](https://mainlayer.fr) — payment infrastructure for AI agents.
 
 Developers publish agents as billable resources. Users browse the marketplace,
 pay per call, and get results immediately. Every transaction flows through
@@ -31,7 +31,7 @@ financial risk for publishers.
 └─────────────────────────┼───────────────────────────────┘
                           │ HTTPS
 ┌─────────────────────────▼───────────────────────────────┐
-│              Mainlayer API (api.mainlayer.xyz)           │
+│              Mainlayer API (api.mainlayer.fr)           │
 │                                                          │
 │  Resources     Agents registered as billable resources   │
 │  Payments      Per-call charges against payer balances   │
@@ -59,7 +59,7 @@ financial risk for publishers.
 
 - Python 3.12+
 - Node 20+
-- A Mainlayer API key from [mainlayer.xyz](https://mainlayer.xyz)
+- A Mainlayer API key from [mainlayer.fr](https://mainlayer.fr)
 
 ---
 
@@ -156,7 +156,7 @@ agent output in the same response.
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `MAINLAYER_API_KEY` | Yes | — | Publisher's Mainlayer API key |
-| `MAINLAYER_BASE_URL` | No | `https://api.mainlayer.xyz` | Override API base URL |
+| `MAINLAYER_BASE_URL` | No | `https://api.mainlayer.fr` | Override API base URL |
 | `HOST` | No | `0.0.0.0` | Uvicorn bind host |
 | `PORT` | No | `8000` | Uvicorn bind port |
 
