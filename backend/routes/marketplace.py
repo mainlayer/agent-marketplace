@@ -1,7 +1,10 @@
-"""
-Marketplace discovery routes — browse and search agents.
+"""Marketplace discovery routes — browse and search agents.
+
+Provides full-text search, filtering by category/tags/price, and aggregated stats.
 """
 
+import logging
+from datetime import datetime
 from fastapi import APIRouter, Query
 from typing import Optional
 
@@ -13,6 +16,7 @@ from backend.models import (
 )
 from backend.store import agent_store
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/marketplace", tags=["Marketplace"])
 
 
@@ -21,13 +25,35 @@ router = APIRouter(prefix="/marketplace", tags=["Marketplace"])
 # ---------------------------------------------------------------------------
 
 
-def _matches(record: dict, query: Optional[str], category: Optional[str], tags: list[str]) -> bool:
+def _matches(
+    record: dict,
+    query: Optional[str],
+    category: Optional[str],
+    tags: list[str],
+) -> bool:
+    """Check if an agent matches all filter criteria.
+
+    Args:
+        record: Agent record dict
+        query: Full-text search query
+        category: Category filter (exact match, case-insensitive)
+        tags: Tag filters (all must be present)
+
+    Returns:
+        True if all filters match, False otherwise
+    """
+    # Category filter (exact match, case-insensitive)
     if category and record.get("category", "").lower() != category.lower():
         return False
+
+    # Tag filters (all tags must be present in agent tags)
     if tags:
         agent_tags = set(record.get("tags", []))
-        if not set(t.lower() for t in tags).issubset(agent_tags):
+        filter_tags = set(t.lower() for t in tags)
+        if not filter_tags.issubset(agent_tags):
             return False
+
+    # Full-text search across name, description, and tags
     if query:
         q = query.lower()
         searchable = (
@@ -39,6 +65,7 @@ def _matches(record: dict, query: Optional[str], category: Optional[str], tags: 
         ).lower()
         if q not in searchable:
             return False
+
     return True
 
 
@@ -56,20 +83,38 @@ async def discover_agents(
     query: Optional[str] = Query(None, description="Full-text search across name, description, tags"),
     category: Optional[str] = Query(None, description="Filter by category"),
     tags: list[str] = Query(default=[], description="Filter by tags (all must match)"),
-    min_price: Optional[float] = Query(None, ge=0),
-    max_price: Optional[float] = Query(None, ge=0),
+    min_price: Optional[float] = Query(None, ge=0, description="Minimum price per call"),
+    max_price: Optional[float] = Query(None, ge=0, description="Maximum price per call"),
     sort_by: str = Query("created_at", pattern="^(created_at|price_per_call|call_count)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> AgentListResponse:
-    """
-    Discover agents with optional full-text search, category and tag
-    filtering, price range filtering, and flexible sorting.
+    """Discover agents with optional full-text search and advanced filters.
+
+    Supports:
+    - Full-text search across name, description, and tags
+    - Filtering by category and tag set
+    - Price range filtering
+    - Multiple sort orders (newest, cheapest, most popular)
+
+    Args:
+        query: Search term (matches substring in name, description, tags)
+        category: Category filter (exact match)
+        tags: Tag filters (all must match)
+        min_price: Minimum price per call
+        max_price: Maximum price per call
+        sort_by: Sort field (created_at, price_per_call, call_count)
+        sort_order: Sort direction (asc, desc)
+        limit: Results per page (1-100)
+        offset: Pagination offset
+
+    Returns:
+        Paginated list of matching agents with total count
     """
     all_agents = list(agent_store.values())
 
-    # Filter
+    # Apply filters
     filtered = [r for r in all_agents if _matches(r, query, category, tags)]
 
     if min_price is not None:
@@ -77,21 +122,23 @@ async def discover_agents(
     if max_price is not None:
         filtered = [r for r in filtered if r["price_per_call"] <= max_price]
 
-    # Sort
+    # Apply sorting
     reverse = sort_order == "desc"
     if sort_by == "price_per_call":
         filtered.sort(key=lambda r: r.get("price_per_call", 0), reverse=reverse)
     elif sort_by == "call_count":
         filtered.sort(key=lambda r: r.get("call_count", 0), reverse=reverse)
     else:
-        # created_at — sort as ISO string (consistent since we use datetime objects)
+        # created_at — sort datetime objects
         filtered.sort(
-            key=lambda r: r.get("created_at", ""),
+            key=lambda r: r.get("created_at", datetime.min),
             reverse=reverse,
         )
 
     total = len(filtered)
     page = filtered[offset : offset + limit]
+
+    logger.debug(f"Discovery: {len(all_agents)} total, {total} matched, returning {len(page)}")
 
     return AgentListResponse(
         agents=[AgentResponse(**r) for r in page],

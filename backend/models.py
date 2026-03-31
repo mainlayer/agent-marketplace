@@ -1,9 +1,12 @@
-"""Pydantic models for the agent marketplace."""
+"""Pydantic models for the agent marketplace.
+
+Includes request/response models for agents, payments, entitlements, and search.
+All models validate input and provide clear error messages.
+"""
 
 from datetime import datetime
 from typing import Any, Optional
 from pydantic import BaseModel, Field, field_validator
-import re
 
 
 # ---------------------------------------------------------------------------
@@ -17,39 +20,47 @@ class AgentCapability(BaseModel):
 
 
 class PublishAgentRequest(BaseModel):
-    name: str = Field(..., min_length=3, max_length=80)
-    description: str = Field(..., min_length=10, max_length=1000)
-    category: str = Field(..., min_length=2, max_length=50)
-    price_per_call: float = Field(..., gt=0, description="Price in USD per call")
-    capabilities: list[AgentCapability] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
-    example_input: Optional[str] = None
-    example_output: Optional[str] = None
+    """Request to publish a new agent to the marketplace.
 
-    @field_validator("tags")
+    Agents are registered as Mainlayer resources with per-call billing.
+    """
+
+    name: str = Field(..., min_length=3, max_length=80, description="Agent display name")
+    description: str = Field(..., min_length=10, max_length=1000, description="What the agent does")
+    category: str = Field(..., min_length=2, max_length=50, description="Category (e.g., NLP, Scheduling)")
+    price_per_call: float = Field(..., gt=0, description="Price in USD per API call")
+    capabilities: list[AgentCapability] = Field(default_factory=list, description="Agent capabilities")
+    tags: list[str] = Field(default_factory=list, description="Search tags")
+    example_input: Optional[str] = Field(None, description="Example JSON input for testing")
+    example_output: Optional[str] = Field(None, description="Example JSON output")
+
+    @field_validator("tags", mode="before")
     @classmethod
     def tags_limit(cls, v: list[str]) -> list[str]:
+        """Validate tag count and normalize."""
         if len(v) > 10:
             raise ValueError("Maximum 10 tags allowed")
-        return [t.strip().lower() for t in v]
+        return [t.strip().lower() for t in v if t.strip()]
 
 
 class AgentResponse(BaseModel):
-    id: str
+    """Full details of a published agent in the marketplace."""
+
+    id: str = Field(description="Unique agent ID")
     name: str
     description: str
     category: str
-    price_per_call: float
+    price_per_call: float = Field(description="Price in USD")
     currency: str = "usd"
     capabilities: list[AgentCapability]
     tags: list[str]
     example_input: Optional[str]
     example_output: Optional[str]
-    resource_id: str
-    publisher_id: str
+    resource_id: str = Field(description="Mainlayer resource ID for billing")
+    publisher_id: str = Field(description="Owner's Mainlayer account ID")
     created_at: datetime
-    call_count: int = 0
-    rating: Optional[float] = None
+    call_count: int = Field(0, ge=0, description="Number of times called")
+    rating: Optional[float] = Field(None, ge=0.0, le=5.0, description="Average user rating")
 
 
 class AgentListResponse(BaseModel):

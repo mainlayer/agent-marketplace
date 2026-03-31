@@ -1,11 +1,11 @@
-"""
-Agent registration and retrieval routes.
+"""Agent registration and retrieval routes.
 
 Developers publish AI agents as Mainlayer resources. Each agent is stored
 in the local in-memory registry (swap for a database in production) and
 mirrored as a Mainlayer resource so per-call billing works out of the box.
 """
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -20,6 +20,7 @@ from backend.models import (
 )
 from backend.store import agent_store
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
 
@@ -29,6 +30,7 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 
 
 def _to_response(record: dict[str, Any]) -> AgentResponse:
+    """Convert a store record dict to an AgentResponse model."""
     return AgentResponse(**record)
 
 
@@ -44,12 +46,20 @@ def _to_response(record: dict[str, Any]) -> AgentResponse:
     summary="Publish a new AI agent",
 )
 async def publish_agent(body: PublishAgentRequest) -> AgentResponse:
-    """
-    Register an AI agent as a Mainlayer resource.
+    """Register an AI agent as a Mainlayer resource.
 
     The agent is stored in the marketplace registry and a corresponding
     Mainlayer resource is created so that per-call payments can be charged
     automatically.
+
+    Args:
+        body: Agent registration request with name, description, price, etc.
+
+    Returns:
+        The published agent with generated ID and resource_id
+
+    Raises:
+        HTTPException: If Mainlayer resource creation fails
     """
     client = get_client()
 
@@ -64,15 +74,17 @@ async def publish_agent(body: PublishAgentRequest) -> AgentResponse:
                 "tags": body.tags,
             },
         )
+        logger.info(f"Created Mainlayer resource for agent: {body.name}")
     except MainlayerError as exc:
+        logger.error(f"Failed to create Mainlayer resource: {exc}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Mainlayer resource creation failed: {exc}",
+            detail=f"Failed to register agent with payment service",
         )
 
     resource_id: str = resource.get("id", str(uuid.uuid4()))
-
     agent_id = str(uuid.uuid4())
+
     record: dict[str, Any] = {
         "id": agent_id,
         "name": body.name,
@@ -91,6 +103,7 @@ async def publish_agent(body: PublishAgentRequest) -> AgentResponse:
         "rating": None,
     }
     agent_store[agent_id] = record
+    logger.info(f"Published agent {agent_id}: {body.name} at ${body.price_per_call}/call")
     return _to_response(record)
 
 

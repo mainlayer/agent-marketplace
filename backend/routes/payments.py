@@ -1,14 +1,14 @@
-"""
-Payment routes — pay to run an agent, check entitlement.
+"""Payment routes — pay to run an agent, check entitlement.
 
 Flow:
   1. Caller POSTs to /payments/agents/{agent_id}/run with their Mainlayer API
      key and the input data.
-  2. We charge the caller via Mainlayer, grant an entitlement, then execute a
-     stub agent (swap out the stub for a real inference call in production).
+  2. We charge the caller via Mainlayer, grant an entitlement, then execute the
+     agent (stub in demo, real inference in production).
   3. The response includes payment details and agent output.
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,24 +23,36 @@ from backend.models import (
 )
 from backend.store import agent_store
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
 
 # ---------------------------------------------------------------------------
-# Stub agent executor — replace with real inference logic per agent
+# Agent executor — replace with real inference logic per agent
 # ---------------------------------------------------------------------------
 
 
 def _execute_agent(agent_record: dict[str, Any], input_data: dict[str, Any]) -> Any:
+    """Execute agent logic (stub version for demo).
+
+    In production, replace this with:
+    - HTTP calls to an inference service
+    - LLM API calls (Claude, OpenAI, Ollama, etc.)
+    - Custom business logic
+    - Job queue submissions
+
+    Args:
+        agent_record: The agent's metadata from the store
+        input_data: The caller's input payload
+
+    Returns:
+        Agent output dict with status and result fields
     """
-    Stub: in production, dispatch to the agent's actual inference endpoint
-    or run the agent logic here.  Returns a deterministic mock output so the
-    marketplace demo is fully functional without external AI backends.
-    """
+    # Stub implementation for demo purposes
     return {
         "agent": agent_record["name"],
         "status": "completed",
-        "result": f"Processed input with {len(input_data)} field(s) successfully.",
+        "result": f"Processed {len(input_data)} field(s) successfully.",
         "input_echo": input_data,
     }
 
@@ -56,15 +68,25 @@ def _execute_agent(agent_record: dict[str, Any], input_data: dict[str, Any]) -> 
     summary="Pay to run an agent",
 )
 async def run_agent(agent_id: str, body: RunAgentRequest) -> RunAgentResponse:
-    """
-    Charge the caller's Mainlayer balance and execute the agent.
+    """Charge the caller's Mainlayer balance and execute the agent.
 
     The caller must supply their own Mainlayer API key in `payer_api_key`.
     Mainlayer handles the charge atomically — if payment fails the agent
     will not run.
+
+    Args:
+        agent_id: The agent to run
+        body: Request with payer_api_key and input_data
+
+    Returns:
+        Payment status, payment ID, and agent output
+
+    Raises:
+        HTTPException: If agent not found or payment fails
     """
     record = agent_store.get(agent_id)
     if not record:
+        logger.warning(f"Agent not found: {agent_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Agent '{agent_id}' not found",
@@ -72,7 +94,7 @@ async def run_agent(agent_id: str, body: RunAgentRequest) -> RunAgentResponse:
 
     client = get_client()
 
-    # 1. Charge the caller
+    # 1. Charge the caller via Mainlayer
     try:
         payment = await client.create_payment(
             resource_id=record["resource_id"],
@@ -81,10 +103,15 @@ async def run_agent(agent_id: str, body: RunAgentRequest) -> RunAgentResponse:
             currency=record["currency"],
             metadata=body.metadata,
         )
+        logger.info(
+            f"Payment successful: {record['name']} "
+            f"(${record['price_per_call']})"
+        )
     except MainlayerError as exc:
+        logger.error(f"Payment failed for agent {agent_id}: {exc}")
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Payment failed: {exc}",
+            detail=f"Payment failed. Check your Mainlayer balance and API key.",
         )
 
     payment_id: str = payment.get("id", "unknown")
@@ -98,9 +125,9 @@ async def run_agent(agent_id: str, body: RunAgentRequest) -> RunAgentResponse:
             calls_granted=1,
             metadata={"payment_id": payment_id},
         )
-    except MainlayerError:
-        # Non-fatal: payment succeeded, log and continue
-        pass
+    except MainlayerError as e:
+        # Non-fatal: payment succeeded, entitlement grant failed. Log and continue.
+        logger.warning(f"Entitlement grant failed (non-fatal): {e}")
 
     # 3. Execute the agent
     output = _execute_agent(record, body.input_data)
