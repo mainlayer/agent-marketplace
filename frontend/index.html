@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Agent Marketplace — buy and sell AI agents with per-call billing powered by Mainlayer." />
+    <title>Agent Marketplace</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      :root {
+        --brand: #6366f1;
+        --brand-dark: #4f46e5;
+        --bg: #0f0f13;
+        --surface: #1a1a24;
+        --surface2: #24243a;
+        --border: #2e2e45;
+        --text: #e8e8f0;
+        --muted: #8888aa;
+        --success: #22c55e;
+        --danger: #ef4444;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      }
+      body { background: var(--bg); color: var(--text); min-height: 100vh; }
+      #root { min-height: 100vh; display: flex; flex-direction: column; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
